@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyVigil | Global Air & Climate Intelligence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdfa',
+                            100: '#ccfbf1',
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            700: '#0f766e',
+                            800: '#115e59',
+                            900: '#134e4a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* ── Custom scrollbars ─────────────────────────────── */
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.04); border-radius: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(14,165,233,0.35); border-radius: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(14,165,233,0.65); }
+
+        /* ── Glass card ────────────────────────────────────── */
+        .glass-card {
+            background: rgba(255,255,255,0.88);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+        .dark .glass-card { background: rgba(15,23,42,0.88); }
+
+        /* ── Leaflet Map ────────────────────────────────────── */
+        #map {
+            height: 480px !important;
+            min-height: 480px !important;
+            width: 100% !important;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* ── Live Alert Ticker ──────────────────────────────── */
+        @keyframes ticker {
+            0%   { transform: translate3d(0,0,0); }
+            100% { transform: translate3d(-50%,0,0); }
+        }
+        .animate-ticker {
+            display: inline-flex;
+            white-space: nowrap;
+            animation: ticker 38s linear infinite;
+        }
+        .animate-ticker:hover { animation-play-state: paused; }
+
+        /* ── Slide Panes — using animation so display:block works ── */
+        .slide-pane { display: none; }
+        .slide-pane.active {
+            display: block;
+            animation: fadeSlideIn 0.35s ease forwards;
+        }
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateX(22px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
+        /* ── Blinking status dot ────────────────────────────── */
+        @keyframes blink-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0.7); }
+            50%       { box-shadow: 0 0 0 6px rgba(52,211,153,0); }
+        }
+        .status-dot-inner { animation: blink-glow 1.6s ease-in-out infinite; }
+
+        /* ── Tab active glow ────────────────────────────────── */
+        .slide-tab-btn.active-tab {
+            background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
+            color: #fff !important;
+            box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-tr from-cyan-100 via-emerald-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 text-slate-800 dark:text-slate-100 font-sans antialiased min-h-screen flex flex-col selection:bg-cyan-300 selection:text-slate-900 transition-colors duration-300">
+
+    <!-- ══════════════════════════════════════════════
+         LIVE ALERT TICKER BAR
+    ══════════════════════════════════════════════ -->
+    <div class="bg-slate-900 text-slate-200 border-b border-cyan-500/30 text-xs py-1.5 px-4 overflow-hidden relative z-50 flex items-center">
+        <span class="bg-rose-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded mr-3 whitespace-nowrap shadow-sm flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span> LIVE ALERTS
+        </span>
+        <div class="overflow-hidden w-full">
+            <div class="animate-ticker text-xs font-medium gap-8 text-cyan-300 flex">
+                <span>🔴 <b>New Delhi</b>: Agricultural Stubble Smoke Trapping (AQI 242) &bull; High Inversion</span>
+                <span>🟡 <b>Beijing</b>: Industrial Inversion Corridor Drift (AQI 162) &bull; Moderate Alert</span>
+                <span>🟢 <b>São Paulo</b>: Coastal Airflow Dispersion Active (AQI 54) &bull; Favorable</span>
+                <span>🔴 <b>Johannesburg</b>: Gauteng Coal Basin Nighttime Accumulation (AQI 210) &bull; Action Required</span>
+                <span>🟠 <b>Cairo</b>: Nile Delta Dust &amp; Straw Smog Drift (AQI 175) &bull; Advisory Active</span>
+                <span>🟢 <b>Addis Ababa</b>: Clean Highland Renewable Belt (AQI 42) &bull; Stable</span>
+                <span>🟠 <b>Riyadh</b>: Aeolian Dust Incursion (AQI 145) &bull; Sensor Grid Active</span>
+                <span>🔴 <b>Tehran</b>: Alborz Basin Nocturnal Inversion (AQI 188) &bull; Throttling Standby</span>
+                <!-- duplicate for seamless loop -->
+                <span>🔴 <b>New Delhi</b>: Agricultural Stubble Smoke Trapping (AQI 242) &bull; High Inversion</span>
+                <span>🟡 <b>Beijing</b>: Industrial Inversion Corridor Drift (AQI 162) &bull; Moderate Alert</span>
+                <span>🟢 <b>São Paulo</b>: Coastal Airflow Dispersion Active (AQI 54) &bull; Favorable</span>
+                <span>🔴 <b>Johannesburg</b>: Gauteng Coal Basin Nighttime Accumulation (AQI 210) &bull; Action Required</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         HEADER — Single Row, Clean, No "Connected" badge
+    ══════════════════════════════════════════════ -->
+    <header class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-cyan-200 dark:border-slate-800 sticky top-0 z-40 shadow-sm">
+        <div class="max-w-screen-2xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+
+            <!-- Left: Logo + Title -->
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="bg-gradient-to-tr from-cyan-500 via-teal-500 to-indigo-600 text-white p-2 rounded-2xl font-black text-lg shadow-md shadow-cyan-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-earth-americas"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h1 id="header-title" class="text-base font-black tracking-tight text-slate-900 dark:text-white whitespace-nowrap">SkyVigil</h1>
+                        <span id="header-badge" class="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-700 whitespace-nowrap">AI FEDERATED GRID</span>
+                    </div>
+                    <p id="header-subtitle" class="text-[11px] text-teal-700 dark:text-teal-400 font-semibold hidden md:block truncate">
+                        Hyper-Local Hotspot Detection &bull; Cross-Border Spike Forecasting &bull; Federated Model Mesh
+                    </p>
+                </div>
+            </div>
+
+            <!-- Right: Controls (single row) -->
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <!-- Ministerial Brief -->
+                <button onclick="openMinisterialBriefModal()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow cursor-pointer transition whitespace-nowrap">
+                    <i class="fa-solid fa-file-invoice"></i>
+                    <span id="nav-brief-text" class="hidden sm:inline">Ministerial Brief</span>
+                </button>
+
+                <!-- Language -->
+                <select id="lang-select" onchange="applyLanguage(this.value)"
+                    class="bg-white dark:bg-slate-800 border border-cyan-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 px-2 py-1.5 rounded-xl shadow-sm outline-none cursor-pointer">
+                    <option value="en">English (EN)</option>
+                    <option value="zh">中文 (ZH)</option>
+                    <option value="hi">हिन्दी (HI)</option>
+                    <option value="pt">Português (PT)</option>
+                    <option value="ru">Русский (RU)</option>
+                    <option value="ar">العربية (AR)</option>
+                </select>
+
+                <!-- Live status dot (replaces "Backend: Connected" badge) -->
+                <div title="Live SkyVigil Telemetry Grid — Active" class="flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-50 dark:bg-slate-800 border border-emerald-200 dark:border-slate-700 shadow-sm">
+                    <span class="relative flex h-3 w-3">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 status-dot-inner"></span>
+                    </span>
+                </div>
+
+                <!-- Dark mode -->
+                <button onclick="toggleDarkMode()" title="Toggle Dark / Light Mode"
+                    class="w-8 h-8 flex items-center justify-center text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition border border-slate-200 dark:border-slate-700 shadow-sm cursor-pointer">
+                    <i class="fa-solid fa-circle-half-stroke"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ══════════════════════════════════════════════
+         SLIDING WINDOW TAB BAR
+    ══════════════════════════════════════════════ -->
+    <div class="max-w-screen-2xl mx-auto px-4 pt-3 pb-0 w-full">
+        <div class="glass-card border border-cyan-200/80 dark:border-slate-800 rounded-2xl px-2 py-1.5 shadow-md flex items-center justify-between gap-2">
+            <!-- Tab buttons -->
+            <div class="flex gap-1.5 overflow-x-auto custom-scrollbar pb-0.5">
+                <button onclick="switchSlideWindow(0)" id="tab-window-0"
+                    class="slide-tab-btn active-tab px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm transition whitespace-nowrap flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-map-location-dot"></i>
+                    <span id="tab-label-0">1. Observation &amp; Map</span>
+                </button>
+                <button onclick="switchSlideWindow(1)" id="tab-window-1"
+                    class="slide-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 shadow-sm transition whitespace-nowrap flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-camera-viewfinder text-teal-500"></i>
+                    <span id="tab-label-1">2. AI Vision &amp; Hotspots</span>
+                </button>
+                <button onclick="switchSlideWindow(2)" id="tab-window-2"
+                    class="slide-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 shadow-sm transition whitespace-nowrap flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-chart-line-up text-amber-500"></i>
+                    <span id="tab-label-2">3. Spike Forecast &amp; Trends</span>
+                </button>
+                <button onclick="switchSlideWindow(3)" id="tab-window-3"
+                    class="slide-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 shadow-sm transition whitespace-nowrap flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-ranking-star text-purple-500"></i>
+                    <span id="tab-label-3">4. Leaderboard &amp; Health</span>
+                </button>
+                <button onclick="switchSlideWindow(4)" id="tab-window-4"
+                    class="slide-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 shadow-sm transition whitespace-nowrap flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-brain text-teal-500"></i>
+                    <span id="tab-label-4">5. Model Mesh &amp; Governance</span>
+                </button>
+            </div>
+            <!-- Prev / Counter / Next -->
+            <div class="flex items-center gap-1 flex-shrink-0 pl-1">
+                <button onclick="slideWindowNav(-1)" title="Previous"
+                    class="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-xl transition text-xs cursor-pointer">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <span id="window-counter" class="text-xs font-black px-2 text-indigo-600 dark:text-indigo-400 whitespace-nowrap">1 / 5</span>
+                <button onclick="slideWindowNav(1)" title="Next"
+                    class="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-xl transition text-xs cursor-pointer">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         FOCAL CORRIDOR BANNER (always visible)
+    ══════════════════════════════════════════════ -->
+    <div class="max-w-screen-2xl mx-auto px-4 pt-3 w-full">
+        <div class="glass-card border border-indigo-200 dark:border-slate-800 rounded-2xl px-5 py-3.5 shadow-md flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <span id="selected-flag" class="text-2xl">🇮🇳</span>
+                <div>
+                    <p id="selected-country" class="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">India &bull; Indo-Gangetic Plain</p>
+                    <h2 id="selected-city" class="text-lg font-black text-slate-900 dark:text-white tracking-tight">New Delhi National Capital Region</h2>
+                </div>
+            </div>
+            <div class="flex flex-col items-end gap-2">
+                <div class="flex items-center gap-2">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400" for="country-select">Country</label>
+                    <select id="country-select" class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"></select>
+                </div>
+                <div id="aqi-badge" class="px-4 py-1.5 rounded-2xl text-xs font-black bg-rose-600 text-white shadow-md">AQI Index: 242 (Unhealthy)</div>
+                <span id="data-source-tag" class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                    <i class="fa-solid fa-bolt text-amber-500 mr-1"></i>Open-Meteo &amp; CAMS Copernicus Live Stream
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-screen-2xl mx-auto px-4 pt-3 w-full">
+        <div class="glass-card border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-md">
+            <div class="flex items-center justify-between gap-2 mb-3">
+                <div>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-sky-600 dark:text-sky-400">Global AQ Pulse</p>
+                    <h3 class="text-base font-black text-slate-900 dark:text-white">Live SkyVigil Air Quality Snapshot</h3>
+                </div>
+                <span id="global-aqi-total" class="px-2.5 py-1 rounded-lg bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 text-[10px] font-black">10 countries</span>
+            </div>
+            <div id="global-pulse-list" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2"></div>
+
+            <div class="mt-4 grid grid-cols-1 xl:grid-cols-[1.4fr_0.8fr] gap-4">
+                <div class="rounded-2xl border border-amber-200 dark:border-slate-700 bg-amber-50/60 dark:bg-slate-800/70 p-3.5">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-[10px] font-black uppercase tracking-widest text-amber-800 dark:text-amber-400">Global climate live feed</p>
+                        <span id="live-clock" class="text-[10px] font-bold text-slate-600 dark:text-slate-300">Live now</span>
+                    </div>
+                    <div id="global-feed-list" class="space-y-2"></div>
+                </div>
+
+                <div class="rounded-2xl border border-violet-200 dark:border-slate-700 bg-violet-50/60 dark:bg-slate-800/70 p-3.5">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-violet-800 dark:text-violet-400 mb-3">Network health</p>
+                    <div class="space-y-3">
+                        <div class="rounded-xl bg-white dark:bg-slate-900/70 p-2.5">
+                            <div class="flex justify-between text-[10px] text-slate-500 dark:text-slate-400"><span>Grid health</span><span id="network-health-value">93%</span></div>
+                            <div class="mt-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <div id="network-health-bar" class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500" style="width:93%"></div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-center text-[10px] font-bold">
+                            <div class="rounded-xl bg-white dark:bg-slate-900/70 p-2">
+                                <div class="text-slate-500 dark:text-slate-400">Alerts</div>
+                                <div id="global-alert-count" class="text-lg text-rose-600 dark:text-rose-400">0</div>
+                            </div>
+                            <div class="rounded-xl bg-white dark:bg-slate-900/70 p-2">
+                                <div class="text-slate-500 dark:text-slate-400">Sensors</div>
+                                <div id="global-sensor-count" class="text-lg text-cyan-600 dark:text-cyan-400">0</div>
+                            </div>
+                            <div class="rounded-xl bg-white dark:bg-slate-900/70 p-2">
+                                <div class="text-slate-500 dark:text-slate-400">Risk index</div>
+                                <div id="global-risk-index" class="text-lg text-amber-600 dark:text-amber-400">0</div>
+                            </div>
+                            <div class="rounded-xl bg-white dark:bg-slate-900/70 p-2">
+                                <div class="text-slate-500 dark:text-slate-400">Policies</div>
+                                <div id="global-policy-count" class="text-lg text-emerald-600 dark:text-emerald-400">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         MAIN SLIDING WINDOW CONTENT
+    ══════════════════════════════════════════════ -->
+    <main class="flex-grow max-w-screen-2xl mx-auto px-4 py-4 w-full">
+
+        <!-- ─────────────────────────────────────────────
+             WINDOW 0 — Observation & Map
+             Layout: Left sidebar (corridors + dispatcher) | Right (satellite banner + map + plume + matrix)
+        ───────────────────────────────────────────── -->
+        <div id="slide-window-0" class="slide-pane active">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-5">
+
+                <!-- Left Sidebar -->
+                <div class="lg:col-span-1 flex flex-col gap-5">
+
+                    <!-- BRICS+ Corridors Selector -->
+                    <div class="glass-card border border-cyan-200 dark:border-slate-800 rounded-3xl p-4 shadow-xl shadow-cyan-900/10">
+                        <div class="flex justify-between items-center mb-3">
+                            <h2 id="corridors-title" class="text-[11px] font-black uppercase tracking-widest text-cyan-800 dark:text-cyan-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-network-wired text-teal-600 dark:text-teal-400"></i>SkyVigil Corridors
+                            </h2>
+                            <span class="text-[10px] font-bold text-slate-500 bg-cyan-50 dark:bg-slate-800 px-2 py-0.5 rounded-lg border border-cyan-100 dark:border-slate-700">10 Nations</span>
+                        </div>
+                        <!-- Region Filters -->
+                        <div class="flex flex-wrap gap-1 mb-3 text-[10px] font-bold">
+                            <button onclick="filterCorridors('all')"      id="filter-all"      class="corridor-filter px-2 py-0.5 rounded-lg bg-indigo-600 text-white whitespace-nowrap cursor-pointer">All</button>
+                            <button onclick="filterCorridors('Asia')"     id="filter-asia"     class="corridor-filter px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 whitespace-nowrap cursor-pointer">Asia</button>
+                            <button onclick="filterCorridors('Americas')" id="filter-americas" class="corridor-filter px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 whitespace-nowrap cursor-pointer">Americas</button>
+                            <button onclick="filterCorridors('Eurasia')"  id="filter-eurasia"  class="corridor-filter px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 whitespace-nowrap cursor-pointer">Eurasia</button>
+                            <button onclick="filterCorridors('Africa')"   id="filter-africa"   class="corridor-filter px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 whitespace-nowrap cursor-pointer">Africa</button>
+                            <button onclick="filterCorridors('MENA')"     id="filter-mena"     class="corridor-filter px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 whitespace-nowrap cursor-pointer">MENA</button>
+                        </div>
+                        <div id="corridors-list" class="space-y-1.5 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar">
+                            <!-- Populated by app.js -->
+                        </div>
+                    </div>
+
+                    <!-- Emergency Webhook Dispatcher -->
+                    <div class="glass-card border border-rose-200 dark:border-rose-900/50 rounded-3xl p-4 shadow-xl shadow-rose-900/10">
+                        <h2 id="webhook-title" class="text-[11px] font-black uppercase tracking-widest text-rose-900 dark:text-rose-400 mb-3 flex items-center gap-1.5">
+                            <i class="fa-solid fa-bullhorn text-rose-600 dark:text-rose-400"></i>Emergency Dispatcher
+                        </h2>
+                        <div class="bg-white/80 dark:bg-slate-800/80 border border-rose-200 dark:border-rose-900/40 rounded-2xl p-3 text-xs space-y-2 shadow-sm">
+                            <p id="webhook-ministerial" class="font-bold text-slate-800 dark:text-slate-200">Ministerial Throttling Dispatch</p>
+                            <p id="webhook-desc" class="text-slate-500 dark:text-slate-400 leading-relaxed text-[11px]">Trigger automated emergency traffic &amp; industrial restriction protocols across member municipalities.</p>
+                            <button onclick="dispatchWebhook()" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 rounded-xl transition shadow-md cursor-pointer flex items-center justify-center gap-2 text-xs">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <span id="btn-dispatch-stage3">Dispatch Stage-3 Webhook</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Weather & Export -->
+                    <div class="bg-white/90 dark:bg-slate-800/90 backdrop-blur border border-indigo-100 dark:border-slate-700 p-3.5 rounded-3xl shadow-sm space-y-2">
+                        <div id="weather-widget" class="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            <span id="weather-text"><i class="fa-solid fa-spinner fa-spin text-amber-500 mr-1"></i> Loading atmospheric data...</span>
+                        </div>
+                        <div class="flex gap-2 pt-1 border-t border-slate-100 dark:border-slate-700">
+                            <button onclick="exportAuditLogs('csv')" class="flex-1 py-1.5 text-xs font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-xl hover:bg-emerald-100 transition border border-emerald-200 dark:border-emerald-800 cursor-pointer text-center">
+                                <i class="fa-solid fa-file-csv mr-1"></i><span id="btn-export-csv">CSV</span>
+                            </button>
+                            <button onclick="exportAuditLogs('json')" class="flex-1 py-1.5 text-xs font-bold bg-cyan-50 dark:bg-cyan-950 text-cyan-600 dark:text-cyan-400 rounded-xl hover:bg-cyan-100 transition border border-cyan-200 dark:border-cyan-800 cursor-pointer text-center">
+                                <i class="fa-solid fa-file-code mr-1"></i><span id="btn-export-json">JSON</span>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Right Main Area -->
+                <div class="lg:col-span-3 flex flex-col gap-5">
+
+                    <!-- Satellite Constellation Banner -->
+                    <div class="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 text-white rounded-2xl p-4 border border-indigo-800/80 shadow-md flex flex-wrap items-center justify-between gap-4">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                                <span id="sat-banner-title" class="text-xs font-black uppercase tracking-widest text-indigo-300">SkyVigil Constellation &amp; Copernicus AOD Sync</span>
+                            </div>
+                            <p id="sat-banner-desc" class="text-xs text-indigo-200">Continuous aerosol optical depth telemetry from joint remote sensing satellite constellation.</p>
+                        </div>
+                        <div class="flex items-center gap-3 bg-indigo-900/80 px-4 py-2 rounded-xl border border-indigo-700/80">
+                            <div>
+                                <p id="sat-live-label" class="text-[10px] uppercase font-bold text-indigo-300">Live Satellite AOD</p>
+                                <p id="brics-live-aod" class="text-base font-black text-emerald-400">0.550 (Sync: <span id="brics-countdown">10</span>s)</p>
+                            </div>
+                            <button onclick="forceSatelliteSync()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs font-bold transition cursor-pointer">
+                                <i class="fa-solid fa-rotate mr-1"></i><span id="btn-sync-sat">Sync</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Geospatial Map Card -->
+                    <div class="glass-card border border-indigo-200 dark:border-slate-800 rounded-3xl p-4 shadow-xl">
+                        <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
+                            <h3 id="map-section-title" class="text-[11px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-map-location-dot text-indigo-600 dark:text-indigo-400"></i>Geospatial Corridor &amp; Hotspot Plume Tracking
+                            </h3>
+                            <div class="flex items-center gap-2">
+                                <button onclick="toggleHotspotLayer()" id="hotspot-toggle-btn"
+                                    class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer">
+                                    <i class="fa-solid fa-fire mr-1"></i><span id="lbl-hotspot-toggle">Hotspot Radar: ON</span>
+                                </button>
+                                <button onclick="toggleAODLayer()" id="aod-toggle-btn"
+                                    class="bg-indigo-50 dark:bg-indigo-950 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer">
+                                    <i class="fa-solid fa-satellite-dish mr-1"></i><span id="lbl-aod-toggle">Satellite AOD Layer</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="map" class="w-full rounded-2xl border border-indigo-200 dark:border-slate-700 shadow-inner"></div>
+                    </div>
+
+                    <!-- Plume Drift + Multi-Pollutant Matrix (side-by-side) -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+                        <!-- Transboundary Plume Drift Simulator -->
+                        <div class="bg-white/80 dark:bg-slate-800/80 border border-teal-200 dark:border-slate-700 rounded-2xl p-4 shadow-sm flex flex-col justify-between gap-3">
+                            <div>
+                                <p id="plume-drift-title" class="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1">
+                                    <i class="fa-solid fa-wind text-teal-600"></i>Transboundary Plume Drift Simulator
+                                </p>
+                                <p id="wind-vector-text" class="text-[11px] text-slate-500 dark:text-slate-400">
+                                    Live Wind: <span class="font-bold text-slate-700 dark:text-slate-200">12.4 km/h at 240° (SW)</span> &bull; 3-hour projection.
+                                </p>
+                            </div>
+                            <button onclick="togglePlumeDriftVectors()" id="plume-drift-btn"
+                                class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-md cursor-pointer flex items-center justify-center gap-1.5">
+                                <i class="fa-solid fa-arrows-split-up-and-left"></i>
+                                <span id="btn-plume-drift">Enable 3h Plume Drift</span>
+                            </button>
+                        </div>
+
+                        <!-- Multi-Pollutant Gas Matrix -->
+                        <div class="bg-white/90 dark:bg-slate-900/90 border border-indigo-200 dark:border-indigo-900/50 rounded-2xl p-4 shadow-sm space-y-3">
+                            <div class="flex items-center justify-between flex-wrap gap-1">
+                                <p id="matrix-title" class="text-[11px] font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-flask text-indigo-600"></i>Pollutant Matrix
+                                </p>
+                                <span id="matrix-subtitle" class="text-[10px] font-bold text-slate-400">Click to inspect</span>
+                            </div>
+                            <!-- Vector Buttons -->
+                            <div class="flex flex-wrap gap-1.5">
+                                <button onclick="switchPollutantVector('PM2.5')" class="pollutant-btn px-2.5 py-1.5 text-xs font-bold rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-600 text-white cursor-pointer transition">PM2.5</button>
+                                <button onclick="switchPollutantVector('PM10')"  class="pollutant-btn px-2.5 py-1.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 transition cursor-pointer">PM10</button>
+                                <button onclick="switchPollutantVector('NO₂')"  class="pollutant-btn px-2.5 py-1.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 transition cursor-pointer">NO₂</button>
+                                <button onclick="switchPollutantVector('SO₂')"  class="pollutant-btn px-2.5 py-1.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 transition cursor-pointer">SO₂</button>
+                                <button onclick="switchPollutantVector('CO')"   class="pollutant-btn px-2.5 py-1.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 transition cursor-pointer">CO</button>
+                                <button onclick="switchPollutantVector('O₃')"   class="pollutant-btn px-2.5 py-1.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 transition cursor-pointer">O₃</button>
+                                <button onclick="switchPollutantVector('Dust')" class="pollutant-btn px-2.5 py-1.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 transition cursor-pointer">Dust</button>
+                            </div>
+                            <!-- Metric Rows -->
+                            <div class="space-y-1.5 border-t border-slate-100 dark:border-slate-800 pt-2">
+                                <div class="flex justify-between items-center">
+                                    <p id="lbl-active-vector" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Active Vector</p>
+                                    <p id="pollutant-name" class="text-xs font-black text-slate-900 dark:text-white">PM2.5 (Fine Particulate)</p>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <p id="lbl-live-conc" class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Live Concentration</p>
+                                    <p id="pollutant-value" class="text-base font-black text-rose-600 dark:text-rose-400">54.6 µg/m³</p>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <p id="lbl-last-sync" class="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wide">Last Synchronized</p>
+                                    <p id="last-updated" class="text-xs font-bold text-slate-700 dark:text-slate-200">Just Now</p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────
+             WINDOW 1 — AI Vision & Hotspot Radar
+        ───────────────────────────────────────────── -->
+        <div id="slide-window-1" class="slide-pane">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+                <!-- AI Smoke & Photo Ingestion Viewfinder -->
+                <div class="glass-card border border-teal-200 dark:border-teal-900/50 rounded-3xl p-5 shadow-xl shadow-teal-900/10">
+                    <div class="flex justify-between items-center mb-2">
+                        <h2 id="ai-vision-title" class="text-[11px] font-black uppercase tracking-widest text-teal-900 dark:text-teal-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-camera-viewfinder text-teal-600 dark:text-teal-400"></i>AI Smoke &amp; Photo Ingestion Viewfinder
+                        </h2>
+                        <span class="text-[9px] font-black uppercase tracking-wider bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 px-2 py-0.5 rounded border border-teal-300 dark:border-teal-800">Vision v2.4</span>
+                    </div>
+                    <p id="ai-vision-desc" class="text-xs text-slate-600 dark:text-slate-400 mb-4">Upload or sample citizen photos to detect crop residue burning, industrial flare stacks, or dense smog plumes.</p>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label id="scenario-label" class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">Select Scenario or Upload Photo</label>
+                            <select id="sample-photo-select" onchange="loadSamplePhoto(this.value)"
+                                class="w-full text-xs font-bold p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-teal-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 outline-none focus:border-teal-500 cursor-pointer">
+                                <option value="agricultural_burning">🔥 Scenario 1: Agricultural Stubble Burning</option>
+                                <option value="industrial_flare">🏭 Scenario 2: Unmonitored Industrial Flare Stack</option>
+                                <option value="vehicular_inversion">🚗 Scenario 3: Dense Highway Smog Inversion</option>
+                                <option value="wildfire">🌲 Scenario 4: Forest Wildfire &amp; Biomass Plume</option>
+                            </select>
+                        </div>
+
+                        <!-- Viewfinder Canvas -->
+                        <div id="photo-preview-box" class="relative w-full h-52 bg-slate-900 rounded-2xl overflow-hidden border border-teal-300/80 dark:border-slate-700 shadow-inner">
+                            <div id="photo-viewfinder-canvas" class="w-full h-full flex items-center justify-center"></div>
+                            <div class="absolute top-2 left-2 flex items-center gap-1 bg-slate-950/80 px-2 py-0.5 rounded text-[9px] text-cyan-300 font-mono border border-cyan-500/40">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>OPTICAL HUD 1080p
+                            </div>
+                            <div class="absolute top-2 right-2 bg-slate-950/80 px-2 py-0.5 rounded text-[9px] text-amber-300 font-mono border border-amber-500/40">SPECTRAL: NIR/RGB</div>
+                            <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent flex flex-col justify-end p-3">
+                                <div class="flex justify-between items-center text-[10px] text-white font-bold">
+                                    <span id="photo-overlay-tag"><i class="fa-solid fa-fire text-amber-400 mr-1"></i>Agricultural Stubble Fire</span>
+                                    <span id="photo-overlay-opacity" class="text-emerald-400 font-mono">Ready for AI Scan</span>
+                                </div>
+                            </div>
+                            <input type="file" id="citizen-file-input" accept="image/*" class="hidden" onchange="handleFileUpload(event)">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="document.getElementById('citizen-file-input').click()"
+                                class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 cursor-pointer">
+                                <i class="fa-solid fa-cloud-arrow-up"></i><span id="btn-upload-custom">Upload Custom</span>
+                            </button>
+                            <button onclick="analyzeCitizenPhotoAI()" id="ai-scan-btn"
+                                class="px-3 py-2 bg-gradient-to-r from-teal-600 to-indigo-600 hover:from-teal-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i><span id="btn-run-scan">Run AI Scan</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- AI Result Card -->
+                    <div id="ai-scan-result-card" class="mt-4 bg-teal-950/30 border border-teal-300/40 dark:border-teal-800/60 rounded-2xl p-4 text-xs space-y-2.5">
+                        <p class="font-black text-teal-800 dark:text-teal-300 uppercase tracking-wide text-[10px]">AI Vision Diagnostics</p>
+                        <div class="flex justify-between items-center font-bold">
+                            <span id="lbl-result-source" class="text-slate-600 dark:text-slate-400">Detected Source:</span>
+                            <span id="ai-result-category" class="text-rose-600 dark:text-rose-400 font-black">Crop Stubble Burning</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span id="lbl-result-opacity" class="text-slate-600 dark:text-slate-400">Visual Smoke Opacity:</span>
+                            <span id="ai-result-opacity" class="font-bold text-amber-700 dark:text-amber-300">88% (Dense)</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span id="lbl-result-aqi" class="text-slate-600 dark:text-slate-400">Estimated Equiv AQI:</span>
+                            <span id="ai-result-aqi" class="font-black text-rose-600 dark:text-rose-400">345 AQI</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span id="lbl-result-conf" class="text-slate-600 dark:text-slate-400">AI Confidence:</span>
+                            <span id="ai-result-confidence" class="font-bold text-emerald-600 dark:text-emerald-400">95.4%</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                        <p class="font-bold text-slate-700 dark:text-slate-300 mb-1"><i class="fa-solid fa-satellite mr-1 text-teal-600"></i>Federated Triangulation</p>
+                        Ground photos are cross-referenced against Sentinel-5P and CBERS satellite thermal anomaly channels to eliminate false positives.
+                    </div>
+                </div>
+
+                <!-- Hidden Hotspots & Cross-Border Anomaly Radar -->
+                <div class="bg-gradient-to-br from-rose-50/70 via-white to-amber-50/70 dark:from-slate-900 dark:via-slate-800/90 dark:to-slate-900 border border-rose-200 dark:border-rose-900/50 rounded-2xl p-5 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-rose-500 animate-ping"></span>
+                            <h3 id="hotspot-radar-title" class="text-[11px] font-black uppercase tracking-widest text-rose-900 dark:text-rose-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-bullseye text-rose-600"></i>Hidden Hotspot &amp; Anomaly Radar
+                            </h3>
+                        </div>
+                        <span id="active-hotspots-count" class="text-xs font-bold text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-900">3 Hotspots</span>
+                    </div>
+                    <p id="hotspot-radar-desc" class="text-xs text-slate-600 dark:text-slate-400 mb-3">Identifies hidden unmonitored clusters by merging citizen ground photos with satellite remote sensing thermal anomalies.</p>
+                    <div id="hotspots-grid" class="grid grid-cols-1 gap-3 max-h-[520px] overflow-y-auto custom-scrollbar pr-1">
+                        <!-- Populated by app.js -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────
+             WINDOW 2 — Spike Forecast & Trend Charts
+        ───────────────────────────────────────────── -->
+        <div id="slide-window-2" class="slide-pane">
+            <div class="space-y-5">
+
+                <!-- Spike Forecasting Engine -->
+                <div class="bg-gradient-to-br from-indigo-50/80 via-white to-sky-50/80 dark:from-slate-900 dark:via-slate-800/90 dark:to-slate-900 border border-indigo-200 dark:border-indigo-900/50 rounded-2xl p-5 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <div>
+                            <h3 id="spike-forecast-title" class="text-[11px] font-black uppercase tracking-widest text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-chart-line-up text-indigo-600"></i>AI Air Quality Spike Forecasting Engine
+                            </h3>
+                            <p id="spike-forecast-desc" class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Projects thermal inversion trapping and transboundary plume convergence across 6h, 12h, and 24h horizons.</p>
+                        </div>
+                        <span id="inversion-risk-badge" class="text-xs font-black text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950 px-3 py-1 rounded-xl border border-rose-200 dark:border-rose-900">Inversion Risk: CRITICAL</span>
+                    </div>
+                    <div id="spike-cards-container" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <!-- Populated by app.js -->
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <!-- 7-Day Trend (2/3 width) -->
+                    <div class="md:col-span-2 bg-white/90 dark:bg-slate-800/90 border border-indigo-200 dark:border-slate-700 rounded-3xl p-5 shadow-xl backdrop-blur-md">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 id="chart-trend-title" class="text-[11px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-chart-line text-indigo-600 dark:text-indigo-400"></i>7-Day Trend &amp; Projection (Open-Meteo)
+                            </h3>
+                            <button onclick="toggleHistoricalBaseline()" id="baseline-toggle-btn"
+                                class="px-2.5 py-1 text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer">
+                                <i class="fa-solid fa-clock-rotate-left mr-1"></i><span id="lbl-baseline-toggle">YoY Baseline: OFF</span>
+                            </button>
+                        </div>
+                        <div class="relative h-64 w-full">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- Source Attribution (1/3 width) -->
+                    <div class="bg-white/90 dark:bg-slate-800/90 border border-indigo-200 dark:border-slate-700 rounded-3xl p-5 shadow-xl backdrop-blur-md">
+                        <h3 id="chart-source-title" class="text-[11px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5">
+                            <i class="fa-solid fa-chart-pie text-indigo-600 dark:text-indigo-400"></i>Source Attribution
+                        </h3>
+                        <div class="relative h-64 w-full flex items-center justify-center">
+                            <canvas id="sourceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────
+             WINDOW 3 — Leaderboard & Health Impact
+        ───────────────────────────────────────────── -->
+        <div id="slide-window-3" class="slide-pane">
+            <div class="space-y-5">
+
+                <!-- Real-Time BRICS Leaderboard -->
+                <div class="bg-gradient-to-br from-purple-50/80 via-white to-indigo-50/80 dark:from-slate-900 dark:via-slate-800/90 dark:to-slate-900 border border-purple-200 dark:border-purple-900/50 rounded-2xl p-5 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div>
+                            <h3 id="leaderboard-title" class="text-[11px] font-black uppercase tracking-widest text-purple-900 dark:text-purple-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-ranking-star text-purple-600"></i>Real-Time SkyVigil Air Quality Leaderboard &amp; Ranking
+                            </h3>
+                            <p id="leaderboard-desc" class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Live comparative index across all member capitals and economic nodes.</p>
+                        </div>
+                        <span class="text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950 px-2.5 py-1 rounded-lg border border-purple-200 dark:border-purple-900">10 Member Nations</span>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="border-b border-purple-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px]">
+                                    <th class="pb-2">Rank</th>
+                                    <th class="pb-2">Corridor / City</th>
+                                    <th class="pb-2">Nation</th>
+                                    <th class="pb-2">Live AQI</th>
+                                    <th class="pb-2">Dominant Pollutant</th>
+                                    <th class="pb-2">Status</th>
+                                    <th class="pb-2 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboard-tbody" class="divide-y divide-slate-100 dark:divide-slate-800">
+                                <!-- Populated by app.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Health & Socio-Economic Impact + Treaty Simulator (side-by-side) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+                    <!-- Health Impact Card -->
+                    <div class="glass-card border border-amber-200 dark:border-amber-900/50 rounded-3xl p-5 shadow-xl shadow-amber-900/10">
+                        <div class="flex justify-between items-center mb-3">
+                            <h2 id="health-title" class="text-[11px] font-black uppercase tracking-widest text-amber-900 dark:text-amber-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-heart-pulse text-amber-600 dark:text-amber-400"></i>Health &amp; Socio-Economic Impact
+                            </h2>
+                            <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Real-Time
+                            </span>
+                        </div>
+                        <div class="bg-white/80 dark:bg-slate-800/80 border border-amber-200 dark:border-amber-900/40 rounded-2xl p-4 text-xs space-y-2.5 shadow-sm">
+                            <div class="flex justify-between items-center">
+                                <span id="health-label-er" class="text-slate-600 dark:text-slate-400">Respiratory ER Strain:</span>
+                                <span id="health-er" class="font-bold text-amber-800 dark:text-amber-300">+33.9% (Critical)</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span id="health-label-ped" class="text-slate-600 dark:text-slate-400">Pediatric Admissions:</span>
+                                <span id="health-ped" class="font-bold text-amber-800 dark:text-amber-300">1,162 cases / day</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span id="health-label-loss" class="text-slate-600 dark:text-slate-400">Productivity Loss:</span>
+                                <span id="health-loss" class="font-bold text-rose-600 dark:text-rose-400">$18.2M / day</span>
+                            </div>
+                            <div class="flex justify-between items-center border-t border-amber-100 dark:border-slate-700/60 pt-2">
+                                <span id="health-label-mort" class="text-slate-600 dark:text-slate-400">Avoidable Mortality Burden:</span>
+                                <span id="health-mortality" class="font-bold text-indigo-600 dark:text-indigo-400">13.3 DALYs per 100k</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Treaty Emission Reduction Simulator -->
+                    <div class="bg-white/80 dark:bg-slate-800/80 border border-indigo-200 dark:border-slate-700 rounded-3xl p-5 shadow-xl flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <span id="treaty-sim-title" class="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-sliders text-indigo-600 dark:text-indigo-400"></i>Treaty Emission Reduction Simulator
+                                </span>
+                                <span id="treaty-slider-val" class="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">Target: 0%</span>
+                            </div>
+                            <input type="range" id="treaty-slider" min="0" max="50" value="0" step="5"
+                                oninput="applyTreatySimulation(this.value)"
+                                class="w-full accent-indigo-600 cursor-pointer">
+                            <div class="flex justify-between text-[10px] text-slate-400 mt-1 font-semibold">
+                                <span id="lbl-treaty-baseline">Baseline (0%)</span>
+                                <span id="lbl-treaty-moderate">Compliance (-25%)</span>
+                                <span id="lbl-treaty-aggressive">Net-Zero (-50%)</span>
+                            </div>
+                        </div>
+                        <div class="mt-4 p-3 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed">
+                            <i class="fa-solid fa-lightbulb mr-1 text-amber-500"></i>Drag the slider to simulate the impact of BRICS multilateral treaty emission reduction commitments on the 7-day trend chart.
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- ─────────────────────────────────────────────
+             WINDOW 4 — Model Mesh & Governance
+        ───────────────────────────────────────────── -->
+        <div id="slide-window-4" class="slide-pane">
+            <div class="space-y-5">
+
+                <!-- Federated ML Model Mesh -->
+                <div class="bg-gradient-to-br from-teal-50/70 via-white to-indigo-50/70 dark:from-slate-900 dark:via-slate-800/90 dark:to-slate-900 border border-teal-200 dark:border-teal-900/50 rounded-2xl p-5 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <div>
+                            <h3 id="mesh-title" class="text-[11px] font-black uppercase tracking-widest text-teal-900 dark:text-teal-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-brain text-teal-600"></i>BRICS Federated ML Model Mesh &amp; Shared Resources
+                            </h3>
+                            <p id="mesh-desc" class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Interoperable cross-border exchange of transfer learning weights and mitigation assets.</p>
+                        </div>
+                        <button onclick="syncAllFederatedModels()"
+                            class="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black transition shadow-sm cursor-pointer flex items-center gap-1.5">
+                            <i class="fa-solid fa-arrows-rotate"></i><span id="btn-sync-all-models">Sync All ML Weights</span>
+                        </button>
+                    </div>
+                    <div id="federated-models-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                        <!-- Populated by app.js -->
+                    </div>
+                    <!-- Shared Resources -->
+                    <div class="bg-white/90 dark:bg-slate-900/90 rounded-xl p-3 border border-teal-200/60 dark:border-slate-700">
+                        <p id="resources-title" class="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                            <i class="fa-solid fa-truck-droplet text-teal-600"></i>Cross-Border Emergency Mitigation Assets
+                        </p>
+                        <div id="shared-resources-list" class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                            <!-- Populated by app.js -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Policy Advisor + Dispatch Log (side-by-side) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+                    <!-- AI Policy Advisor -->
+                    <div class="bg-white/80 dark:bg-slate-800/80 border border-indigo-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm">
+                        <p id="policy-advisor-title" class="text-[11px] font-black uppercase tracking-widest text-indigo-900 dark:text-indigo-300 mb-2 flex items-center gap-1.5">
+                            <i class="fa-solid fa-robot text-indigo-600 dark:text-indigo-400"></i>AI Policy Advisor Directive
+                        </p>
+                        <p id="ai-policy-text" class="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
+                            Initializing real-world policy inference...
+                        </p>
+                    </div>
+
+                    <!-- Federated Dispatch Log -->
+                    <div class="glass-card border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 id="terminal-title" class="text-[11px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-terminal text-indigo-600 dark:text-indigo-400"></i>Federated Dispatch &amp; Event Log
+                            </h3>
+                            <button onclick="clearDispatchLogs()" id="btn-clear-log"
+                                class="text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition cursor-pointer">Clear Log</button>
+                        </div>
+                        <div id="log-stream" class="bg-slate-900 text-emerald-400 rounded-2xl p-4 font-mono text-xs h-44 overflow-y-auto space-y-1.5 border border-slate-800 shadow-inner custom-scrollbar">
+                            <p class="font-bold text-cyan-400">[System] Initializing secure connection to multi-national SkyVigil sensor nodes...</p>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ══════════════════════════════════════════════
+         MINISTERIAL ACTION BRIEF MODAL
+    ══════════════════════════════════════════════ -->
+    <div id="ministerial-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl border border-emerald-500/40 shadow-2xl max-w-2xl w-full p-6 text-slate-800 dark:text-slate-100 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <div class="p-2 bg-emerald-600 text-white rounded-xl"><i class="fa-solid fa-file-invoice"></i></div>
+                    <div>
+                        <h3 class="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">SkyVigil Ministerial Climate Action Brief</h3>
+                        <p class="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">Executive Decision Support &amp; Compliance Briefing</p>
+                    </div>
+                </div>
+                <button onclick="closeMinisterialBriefModal()" class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white text-lg cursor-pointer">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="brief-modal-content" class="text-xs space-y-3 font-sans">
+                <!-- Generated dynamically -->
+            </div>
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button onclick="window.print()" class="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl font-bold transition text-xs cursor-pointer">
+                    <i class="fa-solid fa-print mr-1"></i>Print / Save PDF
+                </button>
+                <button onclick="closeMinisterialBriefModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition text-xs cursor-pointer">
+                    Close Brief
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         FOOTER
+    ══════════════════════════════════════════════ -->
+    <footer class="bg-white/80 dark:bg-slate-900/80 border-t border-cyan-200 dark:border-slate-800 py-3 text-center text-xs text-slate-500 dark:text-slate-400 mt-auto backdrop-blur-md">
+        <p id="footer-text">SkyVigil &bull; Global Clean Air Intelligence &bull; Powered by Open-Access Environmental APIs, AI Vision &amp; Federated Citizen Sensor Nodes</p>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

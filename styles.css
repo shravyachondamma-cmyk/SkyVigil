@@ -1,0 +1,66 @@
+/* ==========================================================================
+   SkyVigil Custom Styles
+   ========================================================================== */
+
+/* Explicit Map Container Height - Guarantee Full Visibility */
+#map {
+    height: 480px !important;
+    min-height: 480px !important;
+    width: 100% !important;
+    border-radius: 1.25rem;
+    position: relative;
+    z-index: 10;
+}
+
+/* Custom Scrollbars for Terminal Logs & Corridor Drawer */
+#log-stream::-webkit-scrollbar,
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+#log-stream::-webkit-scrollbar-track,
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 8px;
+}
+#log-stream::-webkit-scrollbar-thumb,
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #0d9488;
+    border-radius: 8px;
+}
+#log-stream::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #14b8a6;
+}
+
+/* Leaflet Custom Marker & Halo Animations */
+.leaflet-popup-content-wrapper {
+    background: rgba(15, 23, 42, 0.95);
+    color: #f8fafc;
+    border: 1px solid rgba(13, 148, 136, 0.4);
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+}
+.leaflet-popup-tip {
+    background: rgba(15, 23, 42, 0.95);
+}
+
+/* Pulse Animation for Critical Hotspots */
+@keyframes pulse-ring {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 14px rgba(239, 68, 68, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+.hotspot-pulse {
+    animation: pulse-ring 2s infinite;
+}
