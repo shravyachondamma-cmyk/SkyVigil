@@ -37,6 +37,7 @@ let activePollutantVector = 'PM2.5';
 let satelliteCountdown = 10;
 let satelliteInterval = null;
 let currentCustomImageBase64 = null;
+let dashboardStarted = false;
 
 const API_BASE_URL = window.location.protocol === 'file:' ? 'http://localhost:4000' : '';
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
@@ -813,15 +814,16 @@ const i18nDictionary = {
     }
 };
 
-// --- Initialization on DOM Ready ---
-document.addEventListener('DOMContentLoaded', () => {
+// --- Dashboard initialization ---
+function startDashboard() {
+    if (dashboardStarted) return;
+    dashboardStarted = true;
     initWebSocket();
     initMap();
     initCharts();
     renderCountrySelector();
     renderCorridorsList('all');
     renderLeaderboard();
-    loadSamplePhoto('agricultural_burning');
     updateHealthImpact(242);
     setupEventListeners();
     selectCorridor('Delhi');
@@ -832,11 +834,23 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchSharedResources();
     switchSlideWindow(0);
     setInterval(updateLiveClock, 1000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const introScreen = document.getElementById('intro-screen');
+    const enterButton = document.getElementById('enter-dashboard');
+
+    enterButton?.addEventListener('click', () => {
+        introScreen?.classList.add('intro-screen-exit');
+        window.setTimeout(() => introScreen?.remove(), 650);
+        startDashboard();
+    });
 });
 
 // --- Sliding Window Navigation System ---
 function switchSlideWindow(index) {
     currentWindowIndex = Math.max(0, Math.min(totalWindows - 1, index));
+    document.body.classList.toggle('observation-overview-active', currentWindowIndex === 0);
 
     // Update pane visibility and tab active state
     for (let i = 0; i < totalWindows; i++) {
@@ -1637,7 +1651,7 @@ function loadSamplePhoto(categoryKey) {
 }
 
 function handleFileUpload(event) {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0] || event.dataTransfer?.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
@@ -1658,7 +1672,7 @@ function handleFileUpload(event) {
 
 async function analyzeCitizenPhotoAI() {
     const categorySelect = document.getElementById('sample-photo-select');
-    const categoryHint = categorySelect ? categorySelect.value : 'agricultural_burning';
+    const categoryHint = categorySelect ? categorySelect.value : 'user_uploaded_image';
     const scanBtn = document.getElementById('ai-scan-btn');
     const resultCard = document.getElementById('ai-scan-result-card');
     const scanStatus = document.getElementById('photo-overlay-opacity');
@@ -2403,6 +2417,20 @@ function setupEventListeners() {
     window.addEventListener('resize', () => {
         if (map) map.invalidateSize();
     });
+
+    const dropzone = document.getElementById('photo-preview-box');
+    if (dropzone) {
+        dropzone.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            dropzone.classList.add('photo-dropzone-active');
+        });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('photo-dropzone-active'));
+        dropzone.addEventListener('drop', (event) => {
+            event.preventDefault();
+            dropzone.classList.remove('photo-dropzone-active');
+            handleFileUpload(event);
+        });
+    }
 }
 
 // --- Terminal Log Stream & Export ---
@@ -2412,8 +2440,8 @@ function appendLog(message) {
 
     const timeString = new Date().toLocaleTimeString();
     const p = document.createElement('p');
-    p.className = "text-slate-300 flex items-center justify-between border-t border-slate-800/60 pt-1 text-[11px]";
-    p.innerHTML = `<span>${message}</span><span class="text-[10px] text-slate-500 font-mono ml-2 whitespace-nowrap">${timeString}</span>`;
+    p.className = "text-slate-900 flex items-center justify-between border-t border-slate-200 pt-1 text-[11px]";
+    p.innerHTML = `<span>${message}</span><span class="text-[10px] text-slate-700 font-mono ml-2 whitespace-nowrap">${timeString}</span>`;
 
     stream.prepend(p);
 
@@ -2425,7 +2453,7 @@ function appendLog(message) {
 function clearDispatchLogs() {
     const stream = document.getElementById('log-stream');
     if (stream) {
-        stream.innerHTML = `<p class="text-slate-400 text-center py-2 text-xs">[Federated dispatch logs cleared by operator]</p>`;
+        stream.innerHTML = `<p class="text-slate-900 text-center py-2 text-xs">[Federated dispatch logs cleared by operator]</p>`;
     }
 }
 

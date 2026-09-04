@@ -94,6 +94,31 @@
 </head>
 <body class="bg-gradient-to-tr from-cyan-100 via-emerald-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 text-slate-800 dark:text-slate-100 font-sans antialiased min-h-screen flex flex-col selection:bg-cyan-300 selection:text-slate-900 transition-colors duration-300">
 
+    <!-- Opening screen -->
+    <section id="intro-screen" class="intro-screen" aria-labelledby="intro-title">
+        <div class="intro-photo-strip" aria-hidden="true">
+            <figure class="intro-photo intro-photo-india"><img src="https://images.unsplash.com/photo-1524492412937-b28074a5d7da?auto=format&amp;fit=crop&amp;w=900&amp;q=80" alt=""></figure>
+            <figure class="intro-photo intro-photo-china"><img src="https://images.unsplash.com/photo-1548919973-5cef591cdbc9?auto=format&amp;fit=crop&amp;w=900&amp;q=80" alt=""></figure>
+            <figure class="intro-photo intro-photo-brazil"><img src="https://images.unsplash.com/photo-1483729558449-99ef09a8c325?auto=format&amp;fit=crop&amp;w=900&amp;q=80" alt=""></figure>
+            <figure class="intro-photo intro-photo-south-africa"><img src="https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&amp;fit=crop&amp;w=900&amp;q=80" alt=""></figure>
+        </div>
+        <div class="intro-grid" aria-hidden="true"></div>
+        <div class="intro-orbit intro-orbit-one" aria-hidden="true"></div>
+        <div class="intro-orbit intro-orbit-two" aria-hidden="true"></div>
+        <div class="intro-content">
+            <div class="intro-kicker"><span class="intro-signal"></span> BRICS+ environmental intelligence</div>
+            <div class="intro-mark" aria-hidden="true"><i class="fa-solid fa-earth-americas"></i></div>
+            <p class="intro-wordmark">SKYVIGIL</p>
+            <h2 id="intro-title">See the air<br><em>before it moves.</em></h2>
+            <p class="intro-description">A live cross-border view of air quality, atmospheric risk, and coordinated action across the BRICS+ network.</p>
+            <button id="enter-dashboard" class="intro-enter" type="button">
+                Enter the intelligence platform <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+            </button>
+            <p class="intro-meta"><i class="fa-solid fa-satellite-dish" aria-hidden="true"></i> Live telemetry &nbsp;·&nbsp; Federated models &nbsp;·&nbsp; 13 regional corridors</p>
+        </div>
+        <div class="intro-footer"><span>SKYVIGIL / 01</span><span>GLOBAL AIR &amp; CLIMATE INTELLIGENCE</span></div>
+    </section>
+
     <!-- ══════════════════════════════════════════════
          LIVE ALERT TICKER BAR
     ══════════════════════════════════════════════ -->
@@ -181,7 +206,7 @@
     <!-- ══════════════════════════════════════════════
          SLIDING WINDOW TAB BAR
     ══════════════════════════════════════════════ -->
-    <div class="max-w-screen-2xl mx-auto px-4 pt-3 pb-0 w-full">
+    <div class="slide-navigation max-w-screen-2xl mx-auto px-4 pt-3 pb-0 w-full">
         <div class="glass-card border border-cyan-200/80 dark:border-slate-800 rounded-2xl px-2 py-1.5 shadow-md flex items-center justify-between gap-2">
             <!-- Tab buttons -->
             <div class="flex gap-1.5 overflow-x-auto custom-scrollbar pb-0.5">
@@ -226,6 +251,7 @@
         </div>
     </div>
 
+    <div id="observation-overview" class="observation-overview">
     <!-- ══════════════════════════════════════════════
          FOCAL CORRIDOR BANNER (always visible)
     ══════════════════════════════════════════════ -->
@@ -303,6 +329,7 @@
             </div>
         </div>
     </div>
+    </div>
 
     <!-- ══════════════════════════════════════════════
          MAIN SLIDING WINDOW CONTENT
@@ -377,18 +404,18 @@
                 <div class="lg:col-span-3 flex flex-col gap-5">
 
                     <!-- Satellite Constellation Banner -->
-                    <div class="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 text-white rounded-2xl p-4 border border-indigo-800/80 shadow-md flex flex-wrap items-center justify-between gap-4">
+                    <div class="bg-gradient-to-r from-white via-slate-50 to-white text-slate-900 rounded-2xl p-4 border border-indigo-200 shadow-md flex flex-wrap items-center justify-between gap-4">
                         <div class="space-y-1">
                             <div class="flex items-center gap-2">
                                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-                                <span id="sat-banner-title" class="text-xs font-black uppercase tracking-widest text-indigo-300">SkyVigil Constellation &amp; Copernicus AOD Sync</span>
+                                <span id="sat-banner-title" class="text-xs font-black uppercase tracking-widest text-indigo-700">SkyVigil Constellation &amp; Copernicus AOD Sync</span>
                             </div>
-                            <p id="sat-banner-desc" class="text-xs text-indigo-200">Continuous aerosol optical depth telemetry from joint remote sensing satellite constellation.</p>
+                            <p id="sat-banner-desc" class="text-xs text-slate-600">Continuous aerosol optical depth telemetry from joint remote sensing satellite constellation.</p>
                         </div>
-                        <div class="flex items-center gap-3 bg-indigo-900/80 px-4 py-2 rounded-xl border border-indigo-700/80">
+                        <div class="flex items-center gap-3 bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-200">
                             <div>
-                                <p id="sat-live-label" class="text-[10px] uppercase font-bold text-indigo-300">Live Satellite AOD</p>
-                                <p id="brics-live-aod" class="text-base font-black text-emerald-400">0.550 (Sync: <span id="brics-countdown">10</span>s)</p>
+                                <p id="sat-live-label" class="text-[10px] uppercase font-bold text-indigo-700">Live Satellite AOD</p>
+                                <p id="brics-live-aod" class="text-base font-black text-emerald-600">0.550 (Sync: <span id="brics-countdown">10</span>s)</p>
                             </div>
                             <button onclick="forceSatelliteSync()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs font-bold transition cursor-pointer">
                                 <i class="fa-solid fa-rotate mr-1"></i><span id="btn-sync-sat">Sync</span>
@@ -495,27 +522,25 @@
 
                     <div class="space-y-3">
                         <div>
-                            <label id="scenario-label" class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">Select Scenario or Upload Photo</label>
-                            <select id="sample-photo-select" onchange="loadSamplePhoto(this.value)"
-                                class="w-full text-xs font-bold p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-teal-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 outline-none focus:border-teal-500 cursor-pointer">
-                                <option value="agricultural_burning">🔥 Scenario 1: Agricultural Stubble Burning</option>
-                                <option value="industrial_flare">🏭 Scenario 2: Unmonitored Industrial Flare Stack</option>
-                                <option value="vehicular_inversion">🚗 Scenario 3: Dense Highway Smog Inversion</option>
-                                <option value="wildfire">🌲 Scenario 4: Forest Wildfire &amp; Biomass Plume</option>
-                            </select>
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Upload your image</p>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Drag and drop a field photo into the upload area below, or choose a file.</p>
                         </div>
 
                         <!-- Viewfinder Canvas -->
-                        <div id="photo-preview-box" class="relative w-full h-52 bg-slate-900 rounded-2xl overflow-hidden border border-teal-300/80 dark:border-slate-700 shadow-inner">
-                            <div id="photo-viewfinder-canvas" class="w-full h-full flex items-center justify-center"></div>
+                        <div id="photo-preview-box" class="photo-dropzone relative w-full h-52 bg-slate-50 dark:bg-slate-900 rounded-2xl overflow-hidden border border-dashed border-teal-300 dark:border-slate-700 shadow-inner">
+                            <div id="photo-viewfinder-canvas" class="w-full h-full flex flex-col items-center justify-center gap-2 text-slate-500 dark:text-slate-400">
+                                <i class="fa-solid fa-cloud-arrow-up text-2xl text-teal-500"></i>
+                                <span class="text-xs font-bold">Drop an image here</span>
+                                <span class="text-[10px]">Your image will appear here for AI analysis</span>
+                            </div>
                             <div class="absolute top-2 left-2 flex items-center gap-1 bg-slate-950/80 px-2 py-0.5 rounded text-[9px] text-cyan-300 font-mono border border-cyan-500/40">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>OPTICAL HUD 1080p
                             </div>
                             <div class="absolute top-2 right-2 bg-slate-950/80 px-2 py-0.5 rounded text-[9px] text-amber-300 font-mono border border-amber-500/40">SPECTRAL: NIR/RGB</div>
                             <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent flex flex-col justify-end p-3">
                                 <div class="flex justify-between items-center text-[10px] text-white font-bold">
-                                    <span id="photo-overlay-tag"><i class="fa-solid fa-fire text-amber-400 mr-1"></i>Agricultural Stubble Fire</span>
-                                    <span id="photo-overlay-opacity" class="text-emerald-400 font-mono">Ready for AI Scan</span>
+                                    <span id="photo-overlay-tag">No image selected</span>
+                                    <span id="photo-overlay-opacity" class="text-emerald-400 font-mono">Waiting for upload</span>
                                 </div>
                             </div>
                             <input type="file" id="citizen-file-input" accept="image/*" class="hidden" onchange="handleFileUpload(event)">
@@ -786,8 +811,8 @@
                             <button onclick="clearDispatchLogs()" id="btn-clear-log"
                                 class="text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition cursor-pointer">Clear Log</button>
                         </div>
-                        <div id="log-stream" class="bg-slate-900 text-emerald-400 rounded-2xl p-4 font-mono text-xs h-44 overflow-y-auto space-y-1.5 border border-slate-800 shadow-inner custom-scrollbar">
-                            <p class="font-bold text-cyan-400">[System] Initializing secure connection to multi-national SkyVigil sensor nodes...</p>
+                        <div id="log-stream" class="bg-white text-slate-900 rounded-2xl p-4 font-mono text-xs h-44 overflow-y-auto space-y-1.5 border border-slate-300 shadow-inner custom-scrollbar">
+                            <p class="font-bold text-slate-900">[System] Initializing secure connection to multi-national SkyVigil sensor nodes...</p>
                         </div>
                     </div>
 
